@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eBPF 网络攻击检测系统 · 监控大屏</title>
+    <!-- ECharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        /* ========== 全局重置 & 基础 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0e1a;
+            color: #e0e6f0;
+            min-height: 100vh;
+            padding: 20px;
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(79, 195, 247, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(0, 230, 118, 0.03) 0%, transparent 50%);
+        }
+
+        /* ========== 顶部标题栏 ========== */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: rgba(20, 27, 45, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(42, 58, 92, 0.6);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            animation: headerGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes headerGlow {
+            0%, 100% { border-color: rgba(42, 58, 92, 0.6); }
+            50% { border-color: rgba(79, 195, 247, 0.3); }
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-left .icon {
+            font-size: 28px;
+        }
+
+        .header-left h1 {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #4fc3f7, #00e676);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-left .subtitle {
+            font-size: 13px;
+            color: #8892b0;
+            margin-left: 8px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: rgba(0, 230, 118, 0.12);
+            border: 1px solid rgba(0, 230, 118, 0.3);
+            color: #00e676;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .status-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00e676;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .uptime {
+            color: #8892b0;
+        }
+
+        /* ========== 统计卡片区 ========== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(20, 27, 45, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(42, 58, 92, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-color, #4fc3f7), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color, #4fc3f7);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(79, 195, 247, 0.1);
+        }
+
+        .stat-card:nth-child(1) { --accent-color: #4fc3f7; }
+        .stat-card:nth-child(2) { --accent-color: #ff7043; }
+        .stat-card:nth-child(3) { --accent-color: #ffb74d; }
+        .stat-card:nth-child(4) { --accent-color: #00e676; }
+
+        .stat-card .label {
+            font-size: 13px;
+            color: #8892b0;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #e0e6f0;
+            transition: all 0.3s;
+        }
+
+        .stat-card .unit {
+            font-size: 14px;
+            color: #8892b0;
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        .stat-card .change {
+            font-size: 12px;
+            margin-top: 6px;
+            color: #00e676;
+        }
+
+        .stat-card:nth-child(1) .value { color: #4fc3f7; }
+        .stat-card:nth-child(2) .value { color: #ff7043; }
+        .stat-card:nth-child(3) .value { color: #ffb74d; }
+        .stat-card:nth-child(4) .value { color: #00e676; }
+
+        /* ========== 图表区域 ========== */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 2fr 1.2fr 2.5fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: rgba(20, 27, 45, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(42, 58, 92, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .chart-card:hover {
+            border-color: rgba(79, 195, 247, 0.3);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 0 15px rgba(79, 195, 247, 0.05);
+        }
+
+        .chart-card .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #a0aec0;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 400px;
+        }
+        #chart-map { height: 420px; }
+
+        /* ========== 告警表格 ========== */
+        .table-card {
+            background: rgba(20, 27, 45, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(42, 58, 92, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: border-color 0.3s;
+        }
+
+        .table-card:hover {
+            border-color: rgba(79, 195, 247, 0.3);
+        }
+
+        .table-card .table-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #a0aec0;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .table-card .table-title .count {
+            font-size: 12px;
+            color: #8892b0;
+            font-weight: 400;
+            margin-left: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 10px 12px;
+            color: #8892b0;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(42, 58, 92, 0.6);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(30, 42, 69, 0.6);
+            color: #c8d0e0;
+            transition: background 0.2s;
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        tbody tr:hover td {
+            background: rgba(79, 195, 247, 0.06);
+        }
+
+        /* ========== 标签样式 ========== */
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .tag-danger { background: rgba(255, 112, 67, 0.15); color: #ff7043; border: 1px solid rgba(255, 112, 67, 0.2); }
+        .tag-warning { background: rgba(255, 183, 77, 0.15); color: #ffb74d; border: 1px solid rgba(255, 183, 77, 0.2); }
+        .tag-info { background: rgba(79, 195, 247, 0.15); color: #4fc3f7; border: 1px solid rgba(79, 195, 247, 0.2); }
+        .tag-success { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.2); }
+        .tag-purple { background: rgba(179, 136, 255, 0.15); color: #b388ff; border: 1px solid rgba(179, 136, 255, 0.2); }
+
+        /* 攻击类型颜色标签 */
+        .tag-syn-flood { background: rgba(255, 112, 67, 0.15); color: #ff7043; border: 1px solid rgba(255, 112, 67, 0.2); }
+        .tag-port-scan { background: rgba(255, 183, 77, 0.15); color: #ffb74d; border: 1px solid rgba(255, 183, 77, 0.2); }
+        .tag-ssh-brute { background: rgba(0, 230, 118, 0.15); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.2); }
+        .tag-dns-amp { background: rgba(79, 195, 247, 0.15); color: #4fc3f7; border: 1px solid rgba(79, 195, 247, 0.2); }
+        .tag-other { background: rgba(179, 136, 255, 0.15); color: #b388ff; border: 1px solid rgba(179, 136, 255, 0.2); }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-dot.active { background: #00e676; }
+        .status-dot.pending { background: #ffb74d; }
+        .status-dot.resolved { background: #4fc3f7; }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 1200px) {
+            .charts-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-row { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 12px; }
+            .header-right { flex-wrap: wrap; justify-content: center; }
+        }
+
+        /* ========== 滚动条美化 ========== */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0e1a; }
+        ::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a4a6c; }
+
+        /* ========== 加载 / 错误提示 ========== */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 14, 26, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+            transition: opacity 0.6s;
+        }
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-spinner {
+            width: 48px; height: 48px;
+            border: 3px solid rgba(79, 195, 247, 0.15);
+            border-top-color: #4fc3f7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text {
+            margin-top: 16px;
+            color: #8892b0;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        .loading-text .dot-anim::after {
+            content: '';
+            animation: dotAnim 1.5s infinite;
+        }
+        @keyframes dotAnim {
+            0% { content: ''; }
+            33% { content: '.'; }
+            66% { content: '..'; }
+            100% { content: '...'; }
+        }
+
+        .error-banner {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            margin-bottom: 16px;
+            background: rgba(255, 112, 67, 0.12);
+            border: 1px solid rgba(255, 112, 67, 0.3);
+            border-radius: 8px;
+            color: #ff7043;
+            font-size: 13px;
+            font-weight: 500;
+            animation: fadeIn 0.3s ease;
+        }
+        .error-banner.show { display: flex; }
+        .error-banner .error-close {
+            margin-left: auto;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+        .error-banner .error-close:hover { opacity: 1; background: rgba(255, 255, 255, 0.05); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ========== 最后更新时间 ========== */
+        .last-updated {
+            font-size: 12px;
+            color: #5a6a8a;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .last-updated .update-dot {
+            width: 4px; height: 4px;
+            border-radius: 50%;
+            background: #4fc3f7;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* ========== 表格响应式滚动 ========== */
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ========== 清空按钮 ========== */
+        .clear-btn {
+            margin-left: auto;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: #8892b0;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(42, 58, 92, 0.5);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .clear-btn:hover {
+            color: #ff7043;
+            border-color: rgba(255, 112, 67, 0.3);
+            background: rgba(255, 112, 67, 0.08);
+        }
+
+        /* ========== 数字更新动画 ========== */
+        .stat-value {
+            display: inline-block;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .stat-value.changed {
+            animation: numberPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes numberPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
+        /* ========== 标签颜色增强 ========== */
+        .tag-danger { background: rgba(255, 72, 72, 0.18); color: #ff4848; border: 1px solid rgba(255, 72, 72, 0.35); }
+        .tag-warning { background: rgba(255, 183, 77, 0.18); color: #ffb74d; border: 1px solid rgba(255, 183, 77, 0.35); }
+        .tag-info { background: rgba(79, 195, 247, 0.18); color: #4fc3f7; border: 1px solid rgba(79, 195, 247, 0.35); }
+        .tag-success { background: rgba(0, 230, 118, 0.18); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.35); }
+        .tag-purple { background: rgba(179, 136, 255, 0.18); color: #b388ff; border: 1px solid rgba(179, 136, 255, 0.35); }
+
+        .tag-syn-flood { background: rgba(255, 72, 72, 0.18); color: #ff4848; border: 1px solid rgba(255, 72, 72, 0.35); }
+        .tag-port-scan { background: rgba(255, 183, 77, 0.18); color: #ffb74d; border: 1px solid rgba(255, 183, 77, 0.35); }
+        .tag-ssh-brute { background: rgba(0, 230, 118, 0.18); color: #00e676; border: 1px solid rgba(0, 230, 118, 0.35); }
+        .tag-dns-amp { background: rgba(79, 195, 247, 0.18); color: #4fc3f7; border: 1px solid rgba(79, 195, 247, 0.35); }
+        .tag-other { background: rgba(179, 136, 255, 0.18); color: #b388ff; border: 1px solid rgba(179, 136, 255, 0.35); }
+
+        /* WebSocket 重连提示 */
+        .reconnect-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 20px;
+            background: rgba(255, 112, 67, 0.9);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            z-index: 9997;
+            animation: fadeIn 0.3s ease;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .reconnect-toast.connected {
+            background: rgba(0, 230, 118, 0.9);
+        }
+
+        /* ========== WebSocket 实时告警弹窗 ========== */
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+            pointer-events: none;
+        }
+
+        .notification-toast {
+            pointer-events: auto;
+            background: rgba(20, 27, 45, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 112, 67, 0.5);
+            border-radius: 10px;
+            padding: 14px 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 112, 67, 0.15);
+            animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .notification-toast:hover {
+            border-color: rgba(255, 112, 67, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 112, 67, 0.25);
+        }
+
+        .notification-toast.removing {
+            animation: slideOutRight 0.3s ease-in forwards;
+        }
+
+        .notification-toast .notif-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .notification-toast .notif-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .notification-toast .notif-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ff7043;
+            margin-bottom: 4px;
+        }
+
+        .notification-toast .notif-detail {
+            font-size: 12px;
+            color: #a0aec0;
+            line-height: 1.5;
+        }
+
+        .notification-toast .notif-detail span {
+            color: #4fc3f7;
+            font-family: monospace;
+        }
+
+        .notification-toast .notif-time {
+            font-size: 11px;
+            color: #5a6a8a;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(calc(100% + 30px)); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(calc(100% + 30px)); opacity: 0; }
+        }
+
+        /* WebSocket 连接状态指示 */
+        .ws-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .ws-status.connected {
+            color: #00e676;
+            background: rgba(0, 230, 118, 0.1);
+        }
+
+        .ws-status.disconnected {
+            color: #ff7043;
+            background: rgba(255, 112, 67, 0.1);
+        }
+
+        .ws-status .ws-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .ws-status.connected .ws-dot {
+            background: #00e676;
+            animation: pulse 1.5s infinite;
+        }
+
+        .ws-status.disconnected .ws-dot {
+            background: #ff7043;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== 顶部标题栏 ==================== -->
+    <header class="header">
+        <div class="header-left">
+            <span class="icon">🛡️</span>
+            <h1>eBPF 网络攻击检测系统</h1>
+            <span class="subtitle">· 实时监控大屏</span>
+        </div>
+        <div class="header-right">
+            <div class="status-badge">
+                <span class="dot"></span>
+                系统运行中
+            </div>
+            <div id="ws-status" class="ws-status disconnected">
+                <span class="ws-dot"></span>
+                <span id="ws-label">推送: 未连接</span>
+            </div>
+            <span class="uptime">⏱ 运行时间: <span id="uptime">00:00:00</span></span>
+        </div>
+    </header>
+
+    <!-- ==================== 加载遮罩 ==================== -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">系统初始化中<span class="dot-anim"></span></div>
+    </div>
+
+    <!-- ==================== 错误提示栏 ==================== -->
+    <div id="error-banner" class="error-banner">
+        ⚠️ <span id="error-msg">网络连接异常，请检查后端服务</span>
+        <span class="error-close" onclick="this.parentElement.classList.remove('show')">✕</span>
+    </div>
+
+    <!-- ==================== 实时告警弹窗容器 ==================== -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- ==================== 统计卡片 ==================== -->
+    <section class="stats-grid">
+        <div class="stat-card">
+            <div class="label">📊 总流量</div>
+            <div class="value" id="stat-traffic">0<span class="unit">GB</span></div>
+            <div class="change">实时累计</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">⚠️ 攻击告警</div>
+            <div class="value" id="stat-alerts">0</div>
+            <div class="change">累计告警数</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">🚫 活跃流</div>
+            <div class="value" id="stat-blocked">0</div>
+            <div class="change">当前连接数</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">💻 系统负载</div>
+            <div class="value" id="stat-load">0<span class="unit">%</span></div>
+            <div class="change">基于 PPS 估算</div>
+        </div>
+    </section>
+
+    <!-- ==================== 图表区域 ==================== -->
+    <section class="charts-row">
+        <!-- 折线图：实时流量 -->
+        <div class="chart-card">
+            <div class="chart-title">📈 实时流量 (近10个采样点)</div>
+            <div id="chart-line" class="chart-container"></div>
+        </div>
+
+        <!-- 饼图：攻击类型分布 -->
+        <div class="chart-card">
+            <div class="chart-title">🎯 攻击类型分布</div>
+            <div id="chart-pie" class="chart-container"></div>
+        </div>
+
+        <!-- 地图：攻击来源分布 -->
+        <div class="chart-card">
+            <div class="chart-title">🌏 攻击来源分布</div>
+            <div id="chart-map" class="chart-container"></div>
+        </div>
+    </section>
+
+    <!-- ==================== 告警列表 ==================== -->
+    <section class="table-card">
+        <div class="table-title">
+            📋 最近告警
+            <span class="count">(实时更新 · 共 <span id="alert-count">0</span> 条)</span>
+            <div class="last-updated">
+                <span class="update-dot"></span>
+                <span id="last-update-time">等待数据...</span>
+            </div>
+            <button class="clear-btn" onclick="clearAlerts()">🗑️ 清空</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>源 IP</th>
+                        <th>攻击类型</th>
+                        <th>目标</th>
+                        <th>地理位置</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="alert-table-body">
+                    <!-- 由 JavaScript 动态渲染 -->
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <script>
+        // ================================================================
+        //  🔗 API 配置
+        // ================================================================
+        const API_BASE = '';
+
+        // ================================================================
+        //  🎯 真实 API 调用
+        // ================================================================
+
+        async function fetchStats() {
+            const res = await fetch(`${API_BASE}/api/stats`);
+            const json = await res.json();
+            const totalBytes = json.latest_flows.reduce((sum, f) => sum + f.total_bytes, 0);
+            const trafficGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(1);
+            const totalPps = json.latest_flows.reduce((sum, f) => sum + f.pps, 0);
+            const loadPercent = Math.min(100, Math.round(totalPps / 5000 * 100));
+            return {
+                traffic: trafficGB,
+                trafficUnit: 'GB',
+                alerts: json.total_alerts || 0,
+                blocked: json.latest_flows.length,
+                load: loadPercent,
+            };
+        }
+
+        async function fetchTrafficSeries() {
+            const res = await fetch(`${API_BASE}/api/stats`);
+            const json = await res.json();
+            const sorted = [...json.latest_flows].sort((a, b) => a.timestamp - b.timestamp);
+            return sorted.map(f => ({
+                time: new Date(f.timestamp * 1000).toLocaleTimeString('zh-CN', { hour12: false }),
+                value: Math.round(f.bytes_per_sec / 1024 / 1024 * 100) / 100,
+            }));
+        }
+
+        async function fetchAttackTypes() {
+            const res = await fetch(`${API_BASE}/api/stats`);
+            const json = await res.json();
+            const typeMap = json.type_count || {};
+            const typeNames = {
+                'syn_flood': 'SYN Flood',
+                'port_scan': '端口扫描',
+                'ssh_brute': 'SSH 爆破',
+                'dns_amp': 'DNS 放大',
+                'other': '其他',
+            };
+            return Object.entries(typeMap).map(([key, value]) => ({
+                name: typeNames[key] || key.replace(/_/g, ' ').toUpperCase(),
+                value: value,
+            }));
+        }
+
+        /** 获取攻击来源数据（用于地图） */
+        async function fetchMapData() {
+            const res = await fetch(`${API_BASE}/api/stats`);
+            const json = await res.json();
+            // 从 latest_flows 提取 IP 和流量数据
+            const flows = json.latest_flows || [];
+            return flows.map(f => ({
+                ip: f.ip,
+                value: Math.round(f.bytes_per_sec / 1024), // KB/s
+                pps: f.pps,
+            }));
+        }
+
+        async function fetchAlerts() {
+            const res = await fetch(`${API_BASE}/api/alerts`);
+            const json = await res.json();
+            const alerts = json.data || [];
+            return alerts.slice(0, 10).map(a => {
+                const type = a.attack_type || 'unknown';
+                const typeLabel = type.replace(/_/g, ' ').toUpperCase();
+                const time = a.timestamp_ns
+                    ? new Date(a.timestamp_ns).toLocaleTimeString('zh-CN', { hour12: false })
+                    : '--:--:--';
+                // 根据攻击类型选择标签样式
+                let tagClass = 'tag-other';
+                if (type.includes('syn') || type.includes('flood')) tagClass = 'tag-syn-flood';
+                else if (type.includes('scan') || type.includes('port')) tagClass = 'tag-port-scan';
+                else if (type.includes('ssh') || type.includes('brute')) tagClass = 'tag-ssh-brute';
+                else if (type.includes('dns') || type.includes('amp')) tagClass = 'tag-dns-amp';
+                return {
+                    time: time,
+                    srcIp: a.src_ip || '--',
+                    type: typeLabel,
+                    typeRaw: type,
+                    port: a.dst_ip || '--',
+                    srcLoc: a.src_loc || '未知',
+                    tagClass: tagClass,
+                };
+            });
+        }
+
+        // ================================================================
+        //  📊 ECharts 图表
+        // ================================================================
+
+        // --- 折线图 ---
+        const lineChart = echarts.init(document.getElementById('chart-line'));
+        function updateLineChart(data) {
+            lineChart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(26, 35, 50, 0.9)',
+                    borderColor: '#2a3a5c',
+                    textStyle: { color: '#e0e6f0', fontSize: 12 },
+                },
+                grid: { left: 50, right: 10, top: 10, bottom: 25 },
+                xAxis: {
+                    type: 'category',
+                    data: data.map(d => d.time),
+                    axisLine: { lineStyle: { color: '#2a3a5c' } },
+                    axisLabel: { color: '#8892b0', fontSize: 10 },
+                    splitLine: { show: false },
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'MB/s',
+                    nameTextStyle: { color: '#8892b0', fontSize: 11 },
+                    axisLine: { show: false },
+                    axisLabel: { color: '#8892b0', fontSize: 10 },
+                    splitLine: { lineStyle: { color: 'rgba(30, 42, 69, 0.6)', type: 'dashed' } },
+                },
+                series: [{
+                    type: 'line',
+                    data: data.map(d => d.value),
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 4,
+                    lineStyle: { color: '#4fc3f7', width: 2, shadowBlur: 10, shadowColor: 'rgba(79, 195, 247, 0.3)' },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(79, 195, 247, 0.3)' },
+                                { offset: 1, color: 'rgba(79, 195, 247, 0.02)' },
+                            ],
+                        },
+                    },
+                }],
+            });
+        }
+
+        // --- 饼图 ---
+        const pieChart = echarts.init(document.getElementById('chart-pie'));
+        function updatePieChart(data) {
+            const colors = ['#ff7043', '#ffb74d', '#00e676', '#4fc3f7', '#b388ff'];
+            pieChart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(26, 35, 50, 0.9)',
+                    borderColor: '#2a3a5c',
+                    textStyle: { color: '#e0e6f0', fontSize: 12 },
+                    formatter: '{b}: {c} ({d}%)',
+                },
+                legend: {
+                    orient: 'vertical',
+                    right: 5,
+                    top: 'center',
+                    textStyle: { color: '#a0aec0', fontSize: 11 },
+                    itemWidth: 10,
+                    itemHeight: 10,
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['40%', '50%'],
+                    avoidLabelOverlap: true,
+                    label: { show: false },
+                    emphasis: {
+                        label: { show: true, fontSize: 14, fontWeight: 'bold', color: '#e0e6f0' },
+                        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' },
+                    },
+                    data: data.map((d, i) => ({ ...d, itemStyle: { color: colors[i % colors.length] } })),
+                }],
+            });
+        }
+
+        // --- 中国地图 ---
+        const mapChart = echarts.init(document.getElementById('chart-map'));
+
+        // 模拟中国各省份坐标（IP 到省份的映射，等 GeoIP 集成后替换）
+        const provinceCoords = {
+            '北京': [116.46, 39.92], '上海': [121.48, 31.22], '广州': [113.23, 23.16],
+            '深圳': [114.07, 22.62], '杭州': [120.19, 30.26], '成都': [104.06, 30.67],
+            '武汉': [114.31, 30.52], '南京': [118.78, 32.04], '西安': [108.95, 34.27],
+            '重庆': [106.54, 29.59], '长沙': [112.98, 28.19], '郑州': [113.65, 34.76],
+            '济南': [117.00, 36.65], '沈阳': [123.38, 41.80], '昆明': [102.73, 25.04],
+            '合肥': [117.27, 31.86], '福州': [119.30, 26.08], '南昌': [115.89, 28.68],
+            '贵阳': [106.71, 26.57], '南宁': [108.33, 22.84], '海口': [110.35, 20.02],
+            '兰州': [103.73, 36.03], '西宁': [101.74, 36.56], '银川': [106.27, 38.47],
+            '拉萨': [91.11, 29.97], '乌鲁木齐': [87.68, 43.77], '呼和浩特': [111.65, 40.82],
+            '哈尔滨': [126.63, 45.75], '长春': [125.35, 43.88], '石家庄': [114.48, 38.03],
+            '太原': [112.53, 37.87], '天津': [117.20, 39.13],
+        };
+
+        const provinceNames = Object.keys(provinceCoords);
+
+        function updateMapChart(flowData) {
+            // 如果有真实流量数据，分配到各省份模拟
+            const totalValue = flowData.reduce((sum, f) => sum + f.value, 0) || 1000;
+
+            // 生成各省份的模拟数据（基于真实流量总量按比例分配）
+            const mapData = provinceNames.map((name, i) => {
+                // 用省份索引模拟不同的攻击量
+                const ratio = ((i + 1) * 7) % 100 / 100;
+                return {
+                    name: name,
+                    value: Math.round(totalValue * ratio * 0.15 + 10),
+                };
+            }).sort((a, b) => b.value - a.value);
+
+            // 取 Top 5 作为散点标记
+            const top5 = mapData.slice(0, 5);
+            const scatterData = top5.map(d => ({
+                name: d.name,
+                value: [...provinceCoords[d.name], d.value],
+            }));
+
+            mapChart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(26, 35, 50, 0.9)',
+                    borderColor: '#2a3a5c',
+                    textStyle: { color: '#e0e6f0', fontSize: 12 },
+                    formatter: function(params) {
+                        if (params.seriesType === 'map') {
+                            return `${params.name}<br/>攻击量: ${params.value || 0} KB/s`;
+                        }
+                        return `${params.name}<br/>攻击量: ${params.value[2]} KB/s`;
+                    },
+                },
+                visualMap: {
+                    min: 0,
+                    max: Math.max(...mapData.map(d => d.value), 100),
+                    text: ['高', '低'],
+                    textStyle: { color: '#8892b0' },
+                    inRange: {
+                        color: ['rgba(79, 195, 247, 0.1)', 'rgba(255, 112, 67, 0.4)', 'rgba(255, 50, 50, 0.7)'],
+                    },
+                    calculable: true,
+                    left: 10,
+                    bottom: 10,
+                    itemWidth: 10,
+                    itemHeight: 80,
+                },
+                geo: {
+                    map: 'china',
+                    roam: true,
+                    zoom: 1.5,
+                    center: [104.0, 35.0],
+                    label: {
+                        show: false,
+                    },
+                    itemStyle: {
+                        areaColor: 'rgba(20, 27, 45, 0.6)',
+                        borderColor: 'rgba(42, 58, 92, 0.8)',
+                        borderWidth: 1,
+                    },
+                    emphasis: {
+                        label: { show: true, color: '#e0e6f0' },
+                        itemStyle: {
+                            areaColor: 'rgba(79, 195, 247, 0.2)',
+                        },
+                    },
+                },
+                series: [
+                    {
+                        name: '攻击分布',
+                        type: 'map',
+                        map: 'china',
+                        geoIndex: 0,
+                        data: mapData,
+                    },
+                    {
+                        name: '攻击热点',
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        data: scatterData,
+                        symbolSize: function(val) {
+                            return Math.max(8, Math.min(30, val[2] / 20));
+                        },
+                        itemStyle: {
+                            color: '#ff7043',
+                            shadowBlur: 10,
+                            shadowColor: 'rgba(255, 112, 67, 0.5)',
+                        },
+                        label: {
+                            show: true,
+                            formatter: function(params) {
+                                return params.name;
+                            },
+                            color: '#e0e6f0',
+                            fontSize: 10,
+                            position: 'right',
+                        },
+                        emphasis: {
+                            itemStyle: {
+                                shadowBlur: 20,
+                                shadowColor: 'rgba(255, 112, 67, 0.8)',
+                            },
+                        },
+                    },
+                ],
+            });
+        }
+
+        // ================================================================
+        //  📋 告警表格渲染
+        // ================================================================
+
+        function renderAlerts(alerts) {
+            const tbody = document.getElementById('alert-table-body');
+            tbody.innerHTML = alerts.map(a => `
+                <tr>
+                    <td>${a.time}</td>
+                    <td style="font-family: monospace; color: #4fc3f7;">${a.srcIp}</td>
+                    <td><span class="tag ${a.tagClass}">${a.type}</span></td>
+                    <td style="font-family: monospace;">${a.port}</td>
+                    <td><span class="tag tag-info">${a.srcLoc}</span></td>
+                    <td><span class="tag tag-warning"><span class="status-dot pending"></span>待处理</span></td>
+                </tr>
+            `).join('');
+            document.getElementById('alert-count').textContent = alerts.length;
+        }
+
+        // ================================================================
+        //  📊 统计卡片更新
+        // ================================================================
+
+        function updateStats(stats) {
+            document.getElementById('stat-traffic').innerHTML = `${stats.traffic}<span class="unit">${stats.trafficUnit}</span>`;
+            document.getElementById('stat-alerts').textContent = stats.alerts;
+            document.getElementById('stat-blocked').textContent = stats.blocked;
+            document.getElementById('stat-load').innerHTML = `${stats.load}<span class="unit">%</span>`;
+        }
+
+        // ================================================================
+        //  ⏱ 运行时间计时器
+        // ================================================================
+
+        let startTime = Date.now();
+        function updateUptime() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+            const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+            const s = String(elapsed % 60).padStart(2, '0');
+            document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
+        }
+
+        // ================================================================
+        //  🌏 加载中国地图数据
+        // ================================================================
+
+        let mapReady = false;
+
+        async function loadChinaMap() {
+            try {
+                const res = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json');
+                const chinaJson = await res.json();
+                echarts.registerMap('china', chinaJson);
+                mapReady = true;
+                console.log('✅ 中国地图加载成功');
+            } catch (err) {
+                console.warn('⚠️ 中国地图加载失败，使用简化显示:', err);
+                // 如果地图加载失败，至少让页面不崩溃
+                mapReady = false;
+            }
+        }
+
+        // ================================================================
+        //  🔗 WebSocket 实时告警推送
+        // ================================================================
+
+        const WS_URL = (API_BASE || '') ? API_BASE.replace(/^http/, 'ws') + '/ws/' : '/ws/';
+        let ws = null;
+        let wsReconnectTimer = null;
+
+        /** 更新 WebSocket 连接状态指示 */
+        function updateWsStatus(connected) {
+            const el = document.getElementById('ws-status');
+            const label = document.getElementById('ws-label');
+            if (connected) {
+                el.className = 'ws-status connected';
+                label.textContent = '推送: 已连接';
+            } else {
+                el.className = 'ws-status disconnected';
+                label.textContent = '推送: 未连接';
+            }
+        }
+
+        /** 显示告警弹窗 */
+        function showAlertNotification(alertData) {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = 'notification-toast';
+
+            // 根据攻击类型选择图标
+            let icon = '🚨';
+            if (alertData.typeRaw.includes('syn') || alertData.typeRaw.includes('flood')) icon = '🌊';
+            else if (alertData.typeRaw.includes('scan') || alertData.typeRaw.includes('port')) icon = '🔍';
+            else if (alertData.typeRaw.includes('ssh') || alertData.typeRaw.includes('brute')) icon = '🔑';
+            else if (alertData.typeRaw.includes('dns') || alertData.typeRaw.includes('amp')) icon = '📡';
+
+            const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+
+            toast.innerHTML = `
+                <div class="notif-icon">${icon}</div>
+                <div class="notif-content">
+                    <div class="notif-title">⚠️ ${alertData.type} 攻击检测</div>
+                    <div class="notif-detail">
+                        源 IP: <span>${alertData.srcIp}</span><br>
+                        来源: ${alertData.srcLoc} · 目标: <span>${alertData.port}</span>
+                    </div>
+                </div>
+                <div class="notif-time">${now}</div>
+            `;
+
+            // 点击弹窗关闭
+            toast.addEventListener('click', () => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            });
+
+            container.appendChild(toast);
+
+            // 3秒后自动消失
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.add('removing');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 5000);
+
+            // 最多保留5个弹窗，移除最早的
+            while (container.children.length > 5) {
+                const oldest = container.children[0];
+                oldest.classList.add('removing');
+                setTimeout(() => oldest.remove(), 300);
+            }
+        }
+
+        /** 通过 WebSocket 收到告警时立即渲染到表格 */
+        function prependAlertToTable(alertData) {
+            const tbody = document.getElementById('alert-table-body');
+            const row = document.createElement('tr');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            row.innerHTML = `
+                <td>${time}</td>
+                <td style="font-family: monospace; color: #4fc3f7;">${alertData.srcIp}</td>
+                <td><span class="tag ${alertData.tagClass}">${alertData.type}</span></td>
+                <td style="font-family: monospace;">${alertData.port}</td>
+                <td><span class="tag tag-info">${alertData.srcLoc}</span></td>
+                <td><span class="tag tag-warning"><span class="status-dot pending"></span>待处理</span></td>
+            `;
+            tbody.insertBefore(row, tbody.firstChild);
+
+            // 只保留最多15行
+            while (tbody.children.length > 15) {
+                tbody.removeChild(tbody.lastChild);
+            }
+
+            // 更新告警计数
+            const countEl = document.getElementById('alert-count');
+            countEl.textContent = parseInt(countEl.textContent) + 1;
+        }
+
+        /** 建立 WebSocket 连接 */
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+
+            try {
+                ws = new WebSocket(WS_URL);
+            } catch (err) {
+                console.error('❌ WebSocket 创建失败:', err);
+                updateWsStatus(false);
+                scheduleReconnect();
+                return;
+            }
+
+            ws.onopen = function() {
+                console.log('✅ WebSocket 已连接:', WS_URL);
+                updateWsStatus(true);
+                // 清除重连计时器
+                if (wsReconnectTimer) {
+                    clearTimeout(wsReconnectTimer);
+                    wsReconnectTimer = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('📩 实时告警收到:', data);
+
+                    // 格式化告警数据
+                    const type = data.attack_type || 'unknown';
+                    const typeLabel = type.replace(/_/g, ' ').toUpperCase();
+                    let tagClass = 'tag-other';
+                    if (type.includes('syn') || type.includes('flood')) tagClass = 'tag-syn-flood';
+                    else if (type.includes('scan') || type.includes('port')) tagClass = 'tag-port-scan';
+                    else if (type.includes('ssh') || type.includes('brute')) tagClass = 'tag-ssh-brute';
+                    else if (type.includes('dns') || type.includes('amp')) tagClass = 'tag-dns-amp';
+
+                    const alertData = {
+                        srcIp: data.src_ip || '--',
+                        type: typeLabel,
+                        typeRaw: type,
+                        port: data.dst_ip || '--',
+                        srcLoc: data.src_loc || '未知',
+                        tagClass: tagClass,
+                    };
+
+                    // 弹窗通知
+                    showAlertNotification(alertData);
+                    // 立即插入表格
+                    prependAlertToTable(alertData);
+                } catch (err) {
+                    console.warn('⚠️ WebSocket 消息解析失败:', err);
+                }
+            };
+
+            ws.onclose = function(event) {
+                console.log('🔌 WebSocket 断开 (code: ' + event.code + ')');
+                updateWsStatus(false);
+                // 自动重连
+                scheduleReconnect();
+            };
+
+            ws.onerror = function(err) {
+                console.error('❌ WebSocket 错误:', err);
+                // onerror 之后会触发 onclose，在 onclose 里处理重连
+            };
+        }
+
+        /** 调度 WebSocket 重连（5秒后重试） */
+        function scheduleReconnect() {
+            if (wsReconnectTimer) return;
+            console.log('⏳ 5秒后尝试重连 WebSocket...');
+            wsReconnectTimer = setTimeout(function() {
+                wsReconnectTimer = null;
+                connectWebSocket();
+            }, 5000);
+        }
+
+        // ================================================================
+        //  🔄 定时刷新
+        // ================================================================
+
+        // ================================================================
+        //  🗑️ 清空告警
+        // ================================================================
+
+        function clearAlerts() {
+            document.getElementById('alert-table-body').innerHTML = '';
+            document.getElementById('alert-count').textContent = '0';
+            // 显示一个小提示
+            const title = document.querySelector('.table-title');
+            const tip = document.createElement('span');
+            tip.style.cssText = 'font-size:11px;color:#5a6a8a;margin-left:8px;animation:fadeIn 0.3s;';
+            tip.textContent = '已清空';
+            const old = title.querySelector('.clear-tip');
+            if (old) old.remove();
+            tip.className = 'clear-tip';
+            title.appendChild(tip);
+            setTimeout(() => { if (tip.parentNode) tip.remove(); }, 2000);
+        }
+
+        // ================================================================
+        //  ⏰ 最后更新时间 & 误差提示
+        // ================================================================
+
+        let consecutiveErrors = 0;
+        let loadingTimer = null;
+
+        function updateLastUpdateTime() {
+            const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            document.getElementById('last-update-time').textContent = `最后更新于 ${now}`;
+        }
+
+        function showError(msg) {
+            document.getElementById('error-msg').textContent = msg || '网络连接异常，请检查后端服务';
+            document.getElementById('error-banner').classList.add('show');
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                document.getElementById('error-banner').classList.remove('show');
+            }, 8000);
+        }
+
+        function hideError() {
+            document.getElementById('error-banner').classList.remove('show');
+        }
+
+        // ================================================================
+        //  🔄 定时刷新
+        // ================================================================
+
+        async function refreshAll() {
+            try {
+                const [stats, trafficSeries, attackTypes, mapFlowData, alerts] = await Promise.all([
+                    fetchStats(),
+                    fetchTrafficSeries(),
+                    fetchAttackTypes(),
+                    fetchMapData(),
+                    fetchAlerts(),
+                ]);
+                updateStats(stats);
+                updateLineChart(trafficSeries);
+                updatePieChart(attackTypes);
+                if (mapReady) {
+                    updateMapChart(mapFlowData);
+                }
+                renderAlerts(alerts);
+                updateLastUpdateTime();
+                // 清空连续错误计数
+                consecutiveErrors = 0;
+                hideError();
+            } catch (err) {
+                console.error('❌ API 请求失败:', err);
+                consecutiveErrors++;
+                if (consecutiveErrors >= 2) {
+                    showError(`数据获取失败 (已重试 ${consecutiveErrors} 次)`);
+                }
+            }
+            updateUptime();
+        }
+
+        // ================================================================
+        //  🚀 启动
+        // ================================================================
+
+        // 先加载中国地图，再启动刷新
+        loadChinaMap().then(() => {
+            // 隐藏加载遮罩
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }, 800);
+
+            connectWebSocket();      // 建立 WebSocket 连接
+            refreshAll();
+            // 每 3 秒刷新一次
+            setInterval(refreshAll, 3000);
+        }).catch(() => {
+            // 地图加载失败也隐藏加载遮罩
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }, 800);
+        });
+
+        // 窗口大小变化时自适应
+        window.addEventListener('resize', () => {
+            lineChart.resize();
+            pieChart.resize();
+            mapChart.resize();
+        });
+
+        console.log('✅ Dashboard v7 已启动（第7周 · 界面优化）');
+        console.log('🔗 API: ' + API_BASE);
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,45 @@
+# ============================================================
+#  eBPF 网络攻击检测系统 - Docker Compose 一键部署
+#  功能：前端 Nginx + 后端 Flask API + SQLite
+#  使用：docker-compose up -d
+#  访问：http://localhost:8080
+# ============================================================
+
+version: '3.8'
+
+services:
+
+  # ============================================================
+  #  后端 API 服务（Flask + SocketIO）
+  # ============================================================
+  backend:
+    build: ./backend
+    container_name: ebpf-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/data:/app/data   # SQLite 数据持久化
+    restart: unless-stopped
+    networks:
+      - ebpf-network
+
+  # ============================================================
+  #  前端 Dashboard（Nginx 托管）
+  # ============================================================
+  frontend:
+    build: .
+    container_name: ebpf-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - ebpf-network
+
+# ============================================================
+#  网络配置（让前端可以通过服务名访问后端）
+# ============================================================
+networks:
+  ebpf-network:
+    driver: bridge
