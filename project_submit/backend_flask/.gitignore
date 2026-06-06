@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
+alarm.log
+*.log
+model_tmp/
+模型/
+模型.zip
+inference1.py
