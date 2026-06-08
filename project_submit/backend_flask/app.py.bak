@@ -421,18 +421,6 @@ def handle_disconnect():
     print("❌ 前端 WebSocket 已断开")
 
 
-# ===================== 首页路由（托管 Dashboard） =====================
-
-# dashboard.html 位于项目根目录：libbpf-bootstrap/dashboard.html
-DASHBOARD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-
-@app.route("/")
-def index():
-    from flask import send_from_directory
-    return send_from_directory(DASHBOARD_DIR, "dashboard.html")
-
-
 # ===================== HTTP API =====================
 
 @app.route("/api/health", methods=["GET"])
