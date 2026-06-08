@@ -1,4 +1,36 @@
+# ============================================================
+#  eBPF 网络攻击检测系统 - Git 忽略规则
+# ============================================================
+
+# --- 编译产物 ---
 /build
 /examples/c/build
 /examples/c/.xmake
-/.idea
+
+# --- Python 临时文件 ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# --- 运行时数据库 ---
+*.db
+backend/data/
+
+# --- IDE / 编辑器配置 ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Docker 环境变量 ---
+.env
+
+# --- 系统文件 ---
+*.log
