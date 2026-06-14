@@ -220,11 +220,11 @@
 
 后端正常连接 loader 后，应显示：
 
-    后端已连接占强强 loader：/tmp/xdp_loader.sock
+    后端已连接XDP Loader loader：/tmp/xdp_loader.sock
 
 如果后端一直显示：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 说明 loader 没有运行，或者 /tmp/xdp_loader.sock 没有创建成功，需要先启动 loader。
 
@@ -499,7 +499,7 @@ Flask 后端监听：
 
 现象：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 原因：
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-/* Copyright (c) 2024 David Di */
+/* Copyright (c) 2024 libbpf Contributors */
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/resource.h>

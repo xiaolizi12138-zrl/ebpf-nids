@@ -4,8 +4,8 @@
 
 本提交包包含两个主要模块：
 
-    ebpf_control      占强强 eBPF 控制面模块
-    backend_flask     范江文 Flask 后端模块
+    ebpf_control      XDP Loader eBPF 控制面模块
+    backend_flask     Flask 后端模块
 
 系统完整运行链路如下：
 
@@ -60,7 +60,7 @@
 说明：
 
     ebpf_control/src/loader.c
-        占强强用户态控制面核心程序。
+        XDP Loader用户态控制面核心程序。
 
     ebpf_control/src/xdp_blacklist.bpf.c
         XDP 数据面程序，用于黑名单过滤、SYN Flood 检测、端口扫描检测、流量统计和 Ring Buffer 告警。
@@ -305,11 +305,11 @@ requirements.txt 中包含：
     Flask 告警后端已启动
     HTTP API: http://0.0.0.0:5000
     Unix Socket 客户端目标: /tmp/xdp_loader.sock
-    后端已连接占强强 loader：/tmp/xdp_loader.sock
+    后端已连接XDP Loader loader：/tmp/xdp_loader.sock
 
 如果后端一直显示：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 说明 loader 没有启动，或者 /tmp/xdp_loader.sock 没有创建成功。
 
@@ -660,7 +660,7 @@ SYN Flood 示例：
 
 现象：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 原因：
 

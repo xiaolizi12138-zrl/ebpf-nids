@@ -1,7 +1,7 @@
 [package]
 name = "tracecon"
 version = "0.1.0"
-authors = ["Magnus Kulke <mkulke@gmail.com>"]
+authors = ["Tracecon Example Author <tracecon@example.com>"]
 edition = "2021"
 license = "GPL-2.0 OR BSD-3-Clause"
 rust-version = "1.71"

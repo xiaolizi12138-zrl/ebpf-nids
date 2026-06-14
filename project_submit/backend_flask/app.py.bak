@@ -17,7 +17,7 @@ import os
 DB_PATH = "db.sqlite3"
 LOG_FILE = "alarm.log"
 
-# 占强强 loader 创建的 Unix Socket
+# XDP Loader loader 创建的 Unix Socket
 # 注意：这是同一台 Linux 虚拟机内部通信，不是给前端连的
 XDP_SOCKET_PATH = "/tmp/xdp_loader.sock"
 
@@ -335,12 +335,12 @@ def handle_xdp_msg(msg):
     return None
 
 
-# ===================== 连接占强强 loader 的 Unix Socket 客户端 =====================
+# ===================== 连接XDP Loader loader 的 Unix Socket 客户端 =====================
 
 def xdp_socket_client_loop():
     """
     后端作为 Unix Socket 客户端，
-    主动连接占强强 loader 创建的 /tmp/xdp_loader.sock。
+    主动连接XDP Loader loader 创建的 /tmp/xdp_loader.sock。
 
     loader 发送 JSON Lines：
     一行一个 JSON。
@@ -350,14 +350,14 @@ def xdp_socket_client_loop():
 
         try:
             if not os.path.exists(XDP_SOCKET_PATH):
-                print(f"等待占强强 loader 启动：{XDP_SOCKET_PATH}")
+                print(f"等待XDP Loader loader 启动：{XDP_SOCKET_PATH}")
                 time.sleep(2)
                 continue
 
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             client.connect(XDP_SOCKET_PATH)
 
-            print(f"✅ 后端已连接占强强 loader：{XDP_SOCKET_PATH}")
+            print(f"✅ 后端已连接XDP Loader loader：{XDP_SOCKET_PATH}")
             logging.info(f"已连接 XDP loader socket: {XDP_SOCKET_PATH}")
 
             buffer = ""

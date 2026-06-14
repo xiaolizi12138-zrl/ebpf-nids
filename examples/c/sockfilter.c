@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/* Copyright (c) 2022 Jacky Yin */
+/* Copyright (c) 2022 libbpf Contributors */
 #include <argp.h>
 #include <arpa/inet.h>
 #include <assert.h>

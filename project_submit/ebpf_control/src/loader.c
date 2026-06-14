@@ -1,4 +1,4 @@
-// loader.c - 占强强：eBPF 用户态控制面最终版
+// loader.c - XDP Loader：eBPF 用户态控制面最终版
 // 功能：加载/卸载 XDP 程序、读取 flow_stats Map、接收 Ring Buffer 告警、
 //      作为 Unix Domain Socket 服务端向后端发送 JSON Lines、支持守护进程、日志、配置文件与 SIGHUP 重载。
 

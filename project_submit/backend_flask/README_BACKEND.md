@@ -2,11 +2,11 @@
 
 ## 1. 模块负责人
 
-负责人：范江文  
+负责人：Backend Team  
 模块名称：Flask 后端服务  
 模块目录：backend_flask
 
-本模块负责接收占强强 loader 发来的告警和流速数据，调用算法模型接口，将结果写入数据库，并通过 HTTP API 和 WebSocket 提供给前端使用。
+本模块负责接收XDP Loader loader 发来的告警和流速数据，调用算法模型接口，将结果写入数据库，并通过 HTTP API 和 WebSocket 提供给前端使用。
 
 ---
 
@@ -16,7 +16,7 @@
 
 1. 提供 Flask HTTP API；
 2. 使用 SQLite 存储告警和流速数据；
-3. 作为 Unix Socket 客户端连接占强强 loader；
+3. 作为 Unix Socket 客户端连接XDP Loader loader；
 4. 从 /tmp/xdp_loader.sock 接收 JSON Lines 数据；
 5. 收到 alert 告警后调用 inference.py 模型接口；
 6. 将告警识别结果写入 alerts 表；
@@ -128,17 +128,17 @@ requirements.txt 内容：
 
 ## 6. 启动前置条件
 
-启动后端前，需要先启动占强强 loader，并确保存在：
+启动后端前，需要先启动XDP Loader loader，并确保存在：
 
     /tmp/xdp_loader.sock
 
 如果 loader 未启动，后端会持续输出：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 当 loader 启动成功后，后端会自动连接，并输出：
 
-    后端已连接占强强 loader：/tmp/xdp_loader.sock
+    后端已连接XDP Loader loader：/tmp/xdp_loader.sock
 
 ---
 
@@ -256,13 +256,13 @@ inference.py 是模型调用接口文件。
     Flask 告警后端已启动
     HTTP API: http://0.0.0.0:5000
     Unix Socket 客户端目标: /tmp/xdp_loader.sock
-    后端已连接占强强 loader：/tmp/xdp_loader.sock
+    后端已连接XDP Loader loader：/tmp/xdp_loader.sock
 
 如果后端一直输出：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
-说明占强强 loader 尚未启动，或者 /tmp/xdp_loader.sock 没有创建成功。
+说明XDP Loader loader 尚未启动，或者 /tmp/xdp_loader.sock 没有创建成功。
 
 ---
 
@@ -608,7 +608,7 @@ inference.py 是模型调用接口文件。
 
 ---
 以下命令默认从 project_submit 根目录执行。
-## 16. 与占强强 loader 联调顺序
+## 16. 与XDP Loader loader 联调顺序
 
 终端 1：启动 loader
 
@@ -663,7 +663,7 @@ inference.py 是模型调用接口文件。
 
 现象：
 
-    等待占强强 loader 启动：/tmp/xdp_loader.sock
+    等待XDP Loader loader 启动：/tmp/xdp_loader.sock
 
 原因：
 
